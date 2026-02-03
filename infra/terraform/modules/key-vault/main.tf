@@ -18,3 +18,21 @@ resource "azurerm_key_vault_access_policy" "current_user" {
 
   secret_permissions = ["Get", "List", "Set", "Delete"]
 }
+
+resource "azurerm_key_vault_secret" "secrets" {
+  for_each = var.secrets
+
+  name         = each.key
+  value        = each.value
+  key_vault_id = azurerm_key_vault.main.id
+}
+
+resource "azurerm_key_vault_access_policy" "policies" {
+  for_each = var.access_policies
+
+  key_vault_id = azurerm_key_vault.main.id
+  tenant_id    = each.value.tenant_id != null ? each.value.tenant_id : data.azurerm_client_config.current.tenant_id
+  object_id    = each.value.object_id
+
+  secret_permissions = each.value.secret_permissions
+}

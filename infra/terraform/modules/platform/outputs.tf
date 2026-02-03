@@ -3,22 +3,32 @@ output "resource_group_name" {
   value       = azurerm_resource_group.main.name
 }
 
-output "backend_app_name" {
-  description = "Backend app name."
-  value       = module.backend.app_name
+output "resource_group_id" {
+  description = "Resource group ID."
+  value       = azurerm_resource_group.main.id
 }
 
-output "frontend_app_name" {
-  description = "Frontend app name."
-  value       = module.frontend.app_name
+output "location" {
+  description = "Azure region location."
+  value       = azurerm_resource_group.main.location
 }
 
-output "backend_hostname" {
-  description = "Backend default hostname."
-  value       = module.backend.default_hostname
+output "name_prefix" {
+  description = "Name prefix for resources (project_name-environment)."
+  value       = var.name_prefix
 }
 
-output "frontend_hostname" {
-  description = "Frontend default hostname."
-  value       = module.frontend.default_hostname
+output "tags" {
+  description = "Tags applied to resources."
+  value       = var.tags
+}
+
+output "log_analytics_workspace_id" {
+  description = "Log Analytics Workspace ID."
+  value       = azurerm_log_analytics_workspace.main.id
+}
+
+output "log_analytics_workspace_name" {
+  description = "Log Analytics Workspace name."
+  value       = azurerm_log_analytics_workspace.main.name
 }
