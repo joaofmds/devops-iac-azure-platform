@@ -1,0 +1,137 @@
+name: Preview Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - develop
+      - main
+
+jobs:
+  deploy-preview:
+    if: ${{ github.event.action != 'closed' && startsWith(github.head_ref, 'feature/') }}
+    runs-on: ubuntu-latest
+    environment: preview
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform init
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          terraform -chdir=infra/terraform/environments/preview init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=preview/pr-${PR_NUMBER}.tfstate"
+
+      - name: Terraform apply
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          terraform -chdir=infra/terraform/environments/preview apply -auto-approve \
+            -var-file=terraform.tfvars \
+            -var "environment=pr-${PR_NUMBER}" \
+            -var "storage_account_name=devopspr${PR_NUMBER}sa" \
+            -var "acr_name=devopspr${PR_NUMBER}acr" \
+            -var "key_vault_name=devopspr${PR_NUMBER}kv" \
+            -var "postgres_server_name=devopspr${PR_NUMBER}pg"
+
+      - name: Build & push backend image
+        if: ${{ hashFiles('backend/**') != '' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          az acr login --name devopspr${PR_NUMBER}acr
+          docker build -t devopspr${PR_NUMBER}acr.azurecr.io/backend:${{ github.sha }} backend
+          docker push devopspr${PR_NUMBER}acr.azurecr.io/backend:${{ github.sha }}
+
+      - name: Run database migrations
+        if: ${{ hashFiles('backend/**') != '' }}
+        run: |
+          echo "Execute migrations against the preview database before deploy."
+
+      - name: Deploy backend
+        if: ${{ hashFiles('backend/**') != '' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          az webapp config container set \
+            --resource-group devops-platform-pr-${PR_NUMBER}-rg \
+            --name devops-platform-pr-${PR_NUMBER}-backend \
+            --docker-custom-image-name devopspr${PR_NUMBER}acr.azurecr.io/backend:${{ github.sha }} \
+            --docker-registry-server-url https://devopspr${PR_NUMBER}acr.azurecr.io
+
+      - name: Build frontend
+        if: ${{ hashFiles('frontend/**') != '' }}
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Deploy frontend
+        if: ${{ hashFiles('frontend/**') != '' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          az webapp deployment source config-zip \
+            --resource-group devops-platform-pr-${PR_NUMBER}-rg \
+            --name devops-platform-pr-${PR_NUMBER}-frontend \
+            --src frontend/build.zip
+
+  destroy-preview:
+    if: ${{ github.event.action == 'closed' && startsWith(github.head_ref, 'feature/') }}
+    runs-on: ubuntu-latest
+    environment: preview
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform init
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          terraform -chdir=infra/terraform/environments/preview init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=preview/pr-${PR_NUMBER}.tfstate"
+
+      - name: Terraform destroy
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          terraform -chdir=infra/terraform/environments/preview destroy -auto-approve \
+            -var-file=terraform.tfvars \
+            -var "environment=pr-${PR_NUMBER}" \
+            -var "storage_account_name=devopspr${PR_NUMBER}sa" \
+            -var "acr_name=devopspr${PR_NUMBER}acr" \
+            -var "key_vault_name=devopspr${PR_NUMBER}kv" \
+            -var "postgres_server_name=devopspr${PR_NUMBER}pg"

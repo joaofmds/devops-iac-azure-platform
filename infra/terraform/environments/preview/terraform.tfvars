@@ -1,5 +1,5 @@
 project_name  = "devops-platform"
-environment   = "dev"
+environment   = "preview"
 location      = "eastus2"
 
 tags = {
@@ -7,20 +7,20 @@ tags = {
   cost-center = "platform"
 }
 
-vnet_address_space  = ["10.10.0.0/16"]
-subnet_frontend_cidr = "10.10.1.0/24"
-subnet_backend_cidr  = "10.10.2.0/24"
-subnet_database_cidr = "10.10.3.0/24"
+vnet_address_space  = ["10.30.0.0/16"]
+subnet_frontend_cidr = "10.30.1.0/24"
+subnet_backend_cidr  = "10.30.2.0/24"
+subnet_database_cidr = "10.30.3.0/24"
 
-storage_account_name  = "devopsplatdevsa"
-storage_retention_days = 30
+storage_account_name  = "devopsplatpreview"
+storage_retention_days = 7
 
-acr_name = "devopsplatdevacr"
+acr_name = "devopsplatprevacr"
 acr_sku  = "Standard"
 
-key_vault_name = "devopsplatdevkv"
+key_vault_name = "devopsplatprevkv"
 
-postgres_server_name          = "devopsplatdevpg"
+postgres_server_name          = "devopsplatprevpg"
 postgres_version              = "14"
 postgres_sku_name             = "GP_Standard_D2s_v3"
 postgres_storage_mb           = 32768
