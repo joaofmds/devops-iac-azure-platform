@@ -1,5 +1,5 @@
 variable "name" {
-  description = "Storage account name."
+  description = "Key Vault name."
   type        = string
 }
 
@@ -11,12 +11,6 @@ variable "resource_group_name" {
 variable "location" {
   description = "Azure region."
   type        = string
-}
-
-variable "retention_days" {
-  description = "Retention days for blobs."
-  type        = number
-  default     = 30
 }
 
 variable "tags" {

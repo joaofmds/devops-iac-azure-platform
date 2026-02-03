@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/*"
+  pull_request:
+
+jobs:
+  lint-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform fmt (dev/prod/preview)
+        run: |
+          terraform -chdir=infra/terraform/environments/dev fmt -check
+          terraform -chdir=infra/terraform/environments/prod fmt -check
+          terraform -chdir=infra/terraform/environments/preview fmt -check
+
+      - name: Terraform validate (dev)
+        run: |
+          terraform -chdir=infra/terraform/environments/dev init -backend=false
+          terraform -chdir=infra/terraform/environments/dev validate
+
+      - name: Terraform validate (prod)
+        run: |
+          terraform -chdir=infra/terraform/environments/prod init -backend=false
+          terraform -chdir=infra/terraform/environments/prod validate
+
+      - name: Terraform validate (preview)
+        run: |
+          terraform -chdir=infra/terraform/environments/preview init -backend=false
+          terraform -chdir=infra/terraform/environments/preview validate
+
+      - name: Backend build & test
+        if: ${{ hashFiles('backend/**') != '' }}
+        run: |
+          cd backend
+          npm ci
+          npm test
+
+      - name: Frontend build & test
+        if: ${{ hashFiles('frontend/**') != '' }}
+        run: |
+          cd frontend
+          npm ci
+          npm test

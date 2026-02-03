@@ -65,19 +65,19 @@ module "key_vault" {
 }
 
 module "database" {
-  source              = "../../modules/database"
-  name                = var.postgres_server_name
-  resource_group_name = azurerm_resource_group.main.name
-  location            = var.location
-  postgres_version    = var.postgres_version
-  sku_name            = var.postgres_sku_name
-  storage_mb          = var.postgres_storage_mb
+  source                = "../../modules/database"
+  name                  = var.postgres_server_name
+  resource_group_name   = azurerm_resource_group.main.name
+  location              = var.location
+  postgres_version      = var.postgres_version
+  sku_name              = var.postgres_sku_name
+  storage_mb            = var.postgres_storage_mb
   backup_retention_days = var.postgres_backup_retention_days
-  admin_username      = var.postgres_admin_username
-  database_name       = var.postgres_database_name
-  delegated_subnet_id = module.network.database_subnet_id
-  vnet_id             = module.network.vnet_id
-  tags                = local.tags
+  admin_username        = var.postgres_admin_username
+  database_name         = var.postgres_database_name
+  delegated_subnet_id   = module.network.database_subnet_id
+  vnet_id               = module.network.vnet_id
+  tags                  = local.tags
 }
 
 resource "azurerm_key_vault_secret" "database_connection" {

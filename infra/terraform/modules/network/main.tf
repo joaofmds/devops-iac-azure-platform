@@ -1,48 +1,55 @@
-resource "azurerm_resource_group" "example" {
-  name     = "example-resources"
-  location = "West Europe"
+resource "azurerm_virtual_network" "main" {
+  name                = var.vnet_name
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  address_space       = var.address_space
+  tags                = var.tags
 }
 
-resource "azurerm_virtual_network" "example" {
-  name                = "example-vnet"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
-}
-
-resource "azurerm_subnet" "example" {
-  name                 = "example-subnet"
-  resource_group_name  = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
-  address_prefixes     = ["10.0.1.0/24"]
+resource "azurerm_subnet" "frontend" {
+  name                 = var.subnet_frontend_name
+  resource_group_name  = var.resource_group_name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = [var.subnet_frontend_cidr]
 
   delegation {
-    name = "delegation"
+    name = "appservice-delegation"
 
     service_delegation {
-      name    = "Microsoft.ContainerInstance/containerGroups"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action", "Microsoft.Network/virtualNetworks/subnets/prepareNetworkPolicies/action"]
+      name    = "Microsoft.Web/serverFarms"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
     }
   }
 }
 
-resource "azurerm_resource_group" "example" {
-  name     = "example-resources"
-  location = "West Europe"
+resource "azurerm_subnet" "backend" {
+  name                 = var.subnet_backend_name
+  resource_group_name  = var.resource_group_name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = [var.subnet_backend_cidr]
+
+  delegation {
+    name = "appservice-delegation"
+
+    service_delegation {
+      name    = "Microsoft.Web/serverFarms"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+    }
+  }
 }
 
-resource "azurerm_route_table" "example" {
-  name                = "example-route-table"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+resource "azurerm_subnet" "database" {
+  name                 = var.subnet_database_name
+  resource_group_name  = var.resource_group_name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = [var.subnet_database_cidr]
 
-  route {
-    name           = "route1"
-    address_prefix = "10.1.0.0/16"
-    next_hop_type  = "VnetLocal"
-  }
+  delegation {
+    name = "postgresql-delegation"
 
-  tags = {
-    environment = "Production"
+    service_delegation {
+      name    = "Microsoft.DBforPostgreSQL/flexibleServers"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
   }
 }

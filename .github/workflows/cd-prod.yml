@@ -1,0 +1,77 @@
+name: CD Prod
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform init
+        run: |
+          terraform -chdir=infra/terraform/environments/prod init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TF_STATE_CONTAINER }}" \
+            -backend-config="key=prod.tfstate"
+
+      - name: Terraform plan
+        run: terraform -chdir=infra/terraform/environments/prod plan -var-file=terraform.tfvars
+
+      - name: Terraform apply
+        run: terraform -chdir=infra/terraform/environments/prod apply -auto-approve -var-file=terraform.tfvars
+
+      - name: Build & push backend image
+        if: ${{ hashFiles('backend/**') != '' }}
+        run: |
+          az acr login --name ${{ secrets.ACR_NAME_PROD }}
+          docker build -t ${{ secrets.ACR_NAME_PROD }}.azurecr.io/backend:${{ github.sha }} backend
+          docker push ${{ secrets.ACR_NAME_PROD }}.azurecr.io/backend:${{ github.sha }}
+
+      - name: Run database migrations
+        if: ${{ hashFiles('backend/**') != '' }}
+        run: |
+          echo "Execute migrations using your tooling (e.g. npm run migrate) against the private database."
+
+      - name: Deploy backend
+        if: ${{ hashFiles('backend/**') != '' }}
+        run: |
+          az webapp config container set \
+            --resource-group ${{ secrets.APP_RG_PROD }} \
+            --name ${{ secrets.BACKEND_APP_NAME_PROD }} \
+            --docker-custom-image-name ${{ secrets.ACR_NAME_PROD }}.azurecr.io/backend:${{ github.sha }} \
+            --docker-registry-server-url https://${{ secrets.ACR_NAME_PROD }}.azurecr.io
+
+      - name: Build frontend
+        if: ${{ hashFiles('frontend/**') != '' }}
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Deploy frontend
+        if: ${{ hashFiles('frontend/**') != '' }}
+        run: |
+          az webapp deployment source config-zip \
+            --resource-group ${{ secrets.APP_RG_PROD }} \
+            --name ${{ secrets.FRONTEND_APP_NAME_PROD }} \
+            --src frontend/build.zip
