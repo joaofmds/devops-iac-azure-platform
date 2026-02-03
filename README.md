@@ -20,6 +20,7 @@ Este repositório implementa uma plataforma de referência **Azure + Terraform +
             ├── database/
             ├── key-vault/
             ├── network/
+            ├── platform/
             └── storage-account/
 ```
 
