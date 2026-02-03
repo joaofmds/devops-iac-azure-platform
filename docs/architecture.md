@@ -1,100 +1,64 @@
-# Arquitetura:
+# Arquitetura da Plataforma
 
-## Infraestrutura Terraform
+## Diagrama textual
 
-Padronização de nomes recursos por ambiente: `{project-name}-{resource}-{env}`
-Ex: `tech-database-prod`
+```
+                        +-----------------------------+
+                        |      GitHub Actions         |
+                        |  CI / CD / Preview Deploy   |
+                        +---------------+-------------+
+                                        |
+                                        v
+                               +--------+---------+
+                               | Azure Resource   |
+                               | Group (por env)  |
+                               +--------+---------+
+                                        |
+       +--------------------+-----------+-----------+--------------------+
+       |                    |                       |                    |
+       v                    v                       v                    v
+ +-------------+   +-------------------+   +-------------------+   +--------------+
+ |   VNet      |   |   App Service     |   |  PostgreSQL       |   | Storage / LA |
+ | subnets     |   | Backend & Frontend|   | Flexible Server   |   | Logs/Artifacts|
+ +------+------+   +---------+---------+   +---------+---------+   +------+-------+
+        |                    |                       |                    |
+        | VNet Integration   | Managed Identity      | Private DNS         |
+        v                    v                       v                    v
+  +-------------+   +-------------------+   +-------------------+   +--------------+
+  | Subnet App  |   | Key Vault Secrets |   | Private Access    |   | Log Analytics|
+  | (frontend)  |   | (conn string)     |   | (no public IP)    |   | Workspace    |
+  +-------------+   +-------------------+   +-------------------+   +--------------+
+```
 
-### Networking
-- VNET por ambiente
-  - vnet-dev
-  - vnet-prod
-  - vnet-pr-<id>
+## Fluxo CI/CD
 
-- Subnets
-  - subnet-frontend
-  - subnet-backend
-  - subnet-database
+### CI
+1. `terraform fmt` e `terraform validate` para dev, prod e preview.
+2. Build/test backend e frontend (quando diretórios existem).
 
-### Backend
-- Azure App Services
-- Runtime
-  - Node.js 22
+### CD Dev / Prod
+1. `terraform init/plan/apply` com state remoto em Storage Account.
+2. Build e push da imagem do backend para o ACR.
+3. Execução de migrations antes do deploy.
+4. Deploy do backend via App Service (container).
+5. Build e deploy do frontend.
 
-### Frontend
-- Azure App Services
-- Runtime:
-  - React
-- Comunicação com backend via subnet
+### Preview Environments
+1. PR em `feature/*` dispara `terraform apply` com `environment=pr-<id>`.
+2. Recursos isolados por PR (`devops-platform-pr-<id>-*`).
+3. Ao fechar o PR, `terraform destroy` remove todos os recursos.
 
-### Database
-- Azure Database for PostgreSQL
-- Sem IP público
-- Backup automático
-- Private Endpoint
+## Recursos principais por ambiente
 
-### Storage Account
-- logs/
-- static/
+- **Networking**: VNet dedicada com subnets separadas para frontend, backend e banco.
+- **Backend/Frontend**: App Services Linux com integração VNet.
+- **Database**: PostgreSQL Flexible Server com acesso privado e Private DNS.
+- **Key Vault**: Secrets (connection string) expostos via Managed Identity.
+- **Storage**: Logs e assets estáticos com lifecycle policy.
+- **Observabilidade**: Log Analytics Workspace com logs de App Service.
 
-### Observabilidade
-- Log Analytics Workspace
-- Logs coletados de:
-  - App Services
-  - Database (PostgreSQL)
+## Observações importantes
 
-## CI/CD
-
-### Ferramenta
-- Github Actions
-
-### Estratégia de branches
-- Gitflow
-
-### CI - Build & Test
-- backend build & test
-- frontend build & test
-- lint
-
-
-### CD - Deploy Dev / Prod
-- Trigger: 
-  - main -> prod
-  - develop -> dev
-- Fluxo:
-  - Terraform apply (pasta infra)
-  - Criar a imagem Docker da aplicação
-  - Enviar imagem para ACR
-  - database migrations
-  - deploy frontend
-  - deploy backend
-
-### CD - Deploy feature/
-- Trigger:
-  - pull_request em `feature/*`
-- Ao abrir PR:
-  - Stack:
-    - vnet-pr-123
-    - app-backend-pr-123
-    - app-frontend-pr-123
-    - database-pr-123
-- Ao fechar PR:
-  - terraform destroy
-
-## Segurança
-
-### Managed Identities
-- Acesso ao banco de dados via backend
-
-### VNet Integration 
-- Database privado 
-
-### Secrets
-- Github Secrets
-- Variáveis por ambientes
-- Sem crendenciais hardcoded
-
-
----
-
-Organizar por domínios dentro de ambientes
+- **Segurança**: banco sem IP público e secrets apenas via Key Vault.
+- **Naming**: `{project}-{environment}-{resource}`.
+- **Preview**: recursos efêmeros com teardown automático após merge/close.
