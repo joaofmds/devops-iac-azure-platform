@@ -1,0 +1,7 @@
+app_service_plan_id = "1234567890"
+app_service_rg_name = "test-cultivo-dev"
+app_service_rg_location = "West Europe"
+app_service_plan_name = "test-cultivo-dev-plan"
+app_service_plan_sku_tier = "Standard"
+app_service_plan_sku_size = "S1"
+app_service_name = "test-cultivo-dev-app"
